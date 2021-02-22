@@ -809,7 +809,7 @@ public:
     int cur_stripe;
     uint64_t cur_stripe_size;
     string cur_oid;
-    
+
     string oid_prefix;
 
     rgw_obj_select cur_obj;
@@ -817,7 +817,7 @@ public:
     RGWObjManifestRule rule;
 
   public:
-    generator() : manifest(NULL), last_ofs(0), cur_part_ofs(0), cur_part_id(0), 
+    generator() : manifest(NULL), last_ofs(0), cur_part_ofs(0), cur_part_id(0),
 		  cur_stripe(0), cur_stripe_size(0) {}
     int create_begin(CephContext *cct, RGWObjManifest *manifest, const string& placement_rule, rgw_bucket& bucket, rgw_obj& obj);
 
@@ -1216,7 +1216,7 @@ struct RGWZoneParams : RGWSystemMetaObj {
   int fix_pool_names();
 
   const string& get_compression_type(const string& placement_rule) const;
-  
+
   void encode(bufferlist& bl) const override {
     ENCODE_START(10, 1, bl);
     ::encode(domain_root, bl);
@@ -1902,7 +1902,7 @@ public:
 
   int init(CephContext *_cct, RGWRados *_store, const string &period_realm_id, const string &period_realm_name = "",
 	   bool setup_obj = true);
-  int init(CephContext *_cct, RGWRados *_store, bool setup_obj = true);  
+  int init(CephContext *_cct, RGWRados *_store, bool setup_obj = true);
 
   int create(bool exclusive = true);
   int delete_obj();
@@ -1961,7 +1961,7 @@ class RGWMetaSyncStatusManager;
 class RGWDataSyncStatusManager;
 class RGWReplicaLogger;
 class RGWCoroutinesManagerRegistry;
-  
+
 class RGWStateLog {
   RGWRados *store;
   int num_shards;
@@ -2163,7 +2163,7 @@ public:
     }
     bool is_atomic = iter->second.is_atomic;
     bool prefetch_data = iter->second.prefetch_data;
-  
+
     objs_state.erase(iter);
 
     if (is_atomic || prefetch_data) {
@@ -2356,7 +2356,7 @@ protected:
   bool writeable_zone{false};
 
   RGWZoneGroup zonegroup;
-  RGWZone zone_public_config; /* external zone params, e.g., entrypoints, log flags, etc. */  
+  RGWZone zone_public_config; /* external zone params, e.g., entrypoints, log flags, etc. */
   RGWZoneParams zone_params; /* internal zone params, e.g., rados pools */
   uint32_t zone_short_id;
 
@@ -2446,7 +2446,7 @@ public:
     if (i == zone_id_by_name.end()) {
       return false;
     }
-    *id = i->second; 
+    *id = i->second;
     return true;
   }
 
@@ -2588,7 +2588,7 @@ public:
 
   /** set up a bucket listing. handle is filled in. */
   int list_buckets_init(RGWAccessHandle *handle);
-  /** 
+  /**
    * get the next bucket in the listing. obj is filled in,
    * handle is updated.
    */
@@ -2677,7 +2677,7 @@ public:
 
         int get_ref(RGWRados *store, rgw_raw_obj& obj, rgw_rados_ref **pref);
       } state;
-      
+
       struct StatParams {
         ceph::real_time *lastmod;
         uint64_t *obj_size;
@@ -2779,7 +2779,7 @@ public:
         rgw_obj obj;
         rgw_raw_obj head_obj;
       } state;
-      
+
       struct ConditionParams {
         const ceph::real_time *mod_ptr;
         const ceph::real_time *unmod_ptr;
@@ -2788,8 +2788,8 @@ public:
         uint64_t mod_pg_ver;
         const char *if_match;
         const char *if_nomatch;
-        
-        ConditionParams() : 
+
+        ConditionParams() :
                  mod_ptr(NULL), unmod_ptr(NULL), high_precision_time(false), mod_zone_id(0), mod_pg_ver(0),
                  if_match(NULL), if_nomatch(NULL) {}
       } conds;
@@ -2813,7 +2813,7 @@ public:
 
     struct Write {
       RGWRados::Object *target;
-      
+
       struct MetaParams {
         ceph::real_time *mtime;
         map<std::string, bufferlist>* rmattrs;
@@ -2878,7 +2878,7 @@ public:
 
         DeleteResult() : delete_marker(false) {}
       } result;
-      
+
       explicit Delete(RGWRados::Object *_target) : target(_target) {}
 
       int delete_obj();
@@ -2984,7 +2984,7 @@ public:
       void set_bilog_flags(uint16_t flags) {
         bilog_flags = flags;
       }
-      
+
       void set_zones_trace(rgw_zone_set *_zones_trace) {
         zones_trace = _zones_trace;
       }
@@ -3232,7 +3232,7 @@ public:
                string *version_id,
                string *ptag,
                ceph::buffer::list *petag);
-  
+
   int check_bucket_empty(RGWBucketInfo& bucket_info);
 
   /**
@@ -3635,7 +3635,7 @@ public:
 
   int process_lc();
   int list_lc_progress(const string& marker, uint32_t max_entries, map<string, int> *progress_map);
-  
+
   int bucket_check_index(RGWBucketInfo& bucket_info,
                          map<RGWObjCategory, RGWStorageStats> *existing_stats,
                          map<RGWObjCategory, RGWStorageStats> *calculated_stats);
@@ -3938,10 +3938,10 @@ protected:
                           rgw_zone_set* zones_trace = nullptr) = 0;
 
 public:
-  RGWPutObjProcessor(RGWObjectCtx& _obj_ctx, RGWBucketInfo& _bi) : store(NULL), 
-                                                                   obj_ctx(_obj_ctx), 
-                                                                   is_complete(false), 
-                                                                   bucket_info(_bi), 
+  RGWPutObjProcessor(RGWObjectCtx& _obj_ctx, RGWBucketInfo& _bi) : store(NULL),
+                                                                   obj_ctx(_obj_ctx),
+                                                                   is_complete(false),
+                                                                   bucket_info(_bi),
                                                                    canceled(false) {}
   ~RGWPutObjProcessor() override {}
   virtual int prepare(RGWRados *_store, string *oid_rand) {
@@ -3949,7 +3949,7 @@ public:
     return 0;
   }
 
-  int complete(size_t accounted_size, const string& etag, 
+  int complete(size_t accounted_size, const string& etag,
                ceph::real_time *mtime, ceph::real_time set_mtime,
                map<string, bufferlist>& attrs, ceph::real_time delete_at,
                const char *if_match = NULL, const char *if_nomatch = NULL, const string *user_data = nullptr,

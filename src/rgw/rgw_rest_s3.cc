@@ -248,7 +248,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
   if (!version_id.empty()) {
     dump_header(s, "x-amz-version-id", version_id);
   }
-  
+
 
   if (! op_ret) {
     if (! lo_etag.empty()) {
@@ -458,6 +458,8 @@ void RGWDeleteObjTags_ObjStore_S3::send_response()
 
 void RGWListBuckets_ObjStore_S3::send_response_begin(bool has_buckets)
 {
+
+  dout(10) << "===RGWListBuckets_ObjStore_S3::send_response_begin" <<  dendl;
   if (op_ret)
     set_req_state_err(s, op_ret);
   dump_errno(s);
@@ -501,7 +503,7 @@ void RGWListBuckets_ObjStore_S3::send_response_end()
 int RGWGetUsage_ObjStore_S3::get_params()
 {
   start_date = s->info.args.get("start-date");
-  end_date = s->info.args.get("end-date"); 
+  end_date = s->info.args.get("end-date");
   return 0;
 }
 
@@ -549,7 +551,7 @@ void RGWGetUsage_ObjStore_S3::send_response()
   Formatter *formatter = s->formatter;
   string last_owner;
   bool user_section_open = false;
-  
+
   formatter->open_object_section("Usage");
   if (show_log_entries) {
     formatter->open_array_section("Entries");
@@ -935,7 +937,7 @@ int RGWSetBucketVersioning_ObjStore_S3::get_params()
   if (r < 0) {
     return r;
   }
-  
+
   auto data_deleter = std::unique_ptr<char, decltype(free)*>{data, free};
 
   r = do_aws4_auth_completion();
@@ -963,7 +965,7 @@ int RGWSetBucketVersioning_ObjStore_S3::get_params()
   }
 
   r = parser.get_versioning_status(&enable_versioning);
-  
+
   return r;
 }
 
@@ -1164,7 +1166,7 @@ int RGWCreateBucket_ObjStore_S3::get_params()
   if (auth_ret < 0) {
     return auth_ret;
   }
-  
+
   bufferptr in_ptr(data, len);
   in_data.append(in_ptr);
 
@@ -2273,7 +2275,7 @@ void RGWGetLC_ObjStore_S3::execute()
 void RGWGetLC_ObjStore_S3::send_response()
 {
   if (op_ret) {
-    if (op_ret == -ENOENT) {	
+    if (op_ret == -ENOENT) {
       set_req_state_err(s, ERR_NO_SUCH_LC);
     } else {
       set_req_state_err(s, op_ret);
@@ -2303,7 +2305,7 @@ void RGWDeleteLC_ObjStore_S3::send_response()
 {
   if (op_ret == 0)
       op_ret = STATUS_NO_CONTENT;
-  if (op_ret) {   
+  if (op_ret) {
     set_req_state_err(s, op_ret);
   }
   dump_errno(s);
@@ -2970,6 +2972,7 @@ RGWOp *RGWHandler_REST_Service_S3::op_get()
   if (is_usage_op()) {
     return new RGWGetUsage_ObjStore_S3;
   } else {
+    dout(5) << "===RGWHandler_REST_Service_S3:op_get" << dendl;
     return new RGWListBuckets_ObjStore_S3;
   }
 }
@@ -3468,11 +3471,14 @@ RGWHandler_REST* RGWRESTMgr_S3::get_handler(struct req_state* const s,
     }
   } else {
     if (s->init_state.url_bucket.empty()) {
-      handler = new RGWHandler_REST_Service_S3(auth_registry);
+      handler = new RGWHandler_REST_Service_S3(auth_registry); // bucket为空
+      dout(10) << "==RGWHandler_REST_Service_S3" << dendl;
     } else if (s->object.empty()) {
-      handler = new RGWHandler_REST_Bucket_S3(auth_registry);
+      handler = new RGWHandler_REST_Bucket_S3(auth_registry);  // obj为空
+      dout(10) << "==RGWHandler_REST_Bucket_S3" << dendl;
     } else {
-      handler = new RGWHandler_REST_Obj_S3(auth_registry);
+      handler = new RGWHandler_REST_Obj_S3(auth_registry); // bucket和obj都不为空
+      dout(10) << "==RGWHandler_REST_Obj_S3" << dendl;
     }
   }
 

@@ -4,9 +4,13 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <iostream>
+#include <sstream>
+#include <fstream>
 
 #include <boost/algorithm/string.hpp>
 #include "common/Formatter.h"
+#include "common/debug.h"
 #include "common/HTMLFormatter.h"
 #include "common/utf8.h"
 #include "include/str_list.h"
@@ -24,7 +28,7 @@
 #include "rgw_resolve.h"
 
 #include <numeric>
-
+#define dout_context g_ceph_context
 #define dout_subsys ceph_subsys_rgw
 
 struct rgw_http_status_code {
@@ -261,7 +265,7 @@ void rgw_rest_init(CephContext *cct, RGWRados *store, RGWZoneGroup& zone_group)
   /* TODO: We should have a sanity check that no hostname matches the end of
    * any other hostname, otherwise we will get ambigious results from
    * rgw_find_host_in_domains.
-   * Eg: 
+   * Eg:
    * Hostnames: [A, B.A]
    * Inputs: [Z.A, X.B.A]
    * Z.A clearly splits to subdomain=Z, domain=Z
@@ -1658,7 +1662,7 @@ int RGWListMultipart_ObjStore::get_params()
       return op_ret;
     }
   }
-  
+
   string str = s->info.args.get("max-parts");
   op_ret = parse_value_and_bound(str, max_parts, 0,
                                  g_conf->get_val<uint64_t>("rgw_max_listing_results"),
@@ -1722,7 +1726,7 @@ int RGWRESTOp::verify_permission()
 RGWOp* RGWHandler_REST::get_op(RGWRados* store)
 {
   RGWOp *op;
-  switch (s->op) {
+  switch (s->op) {    // 这里s对应一个req_state的结构体
    case OP_GET:
      op = op_get();
      break;
@@ -1872,12 +1876,15 @@ static http_op op_from_method(const char *method)
   if (!method)
     return OP_UNKNOWN;
   if (strcmp(method, "GET") == 0)
+    dout(5) << __FILE__ << __LINE__ <<"====get op" << dendl;
     return OP_GET;
   if (strcmp(method, "PUT") == 0)
+    dout(5) << __FILE__ << __LINE__ <<"====put op" << dendl;
     return OP_PUT;
   if (strcmp(method, "DELETE") == 0)
     return OP_DELETE;
   if (strcmp(method, "HEAD") == 0)
+    dout(5) << __FILE__ << __LINE__ <<"====head op" << dendl;
     return OP_HEAD;
   if (strcmp(method, "POST") == 0)
     return OP_POST;
@@ -2092,10 +2099,10 @@ int RGWREST::preprocess(struct req_state *s, rgw::io::BasicClient* cio)
     }
 
     ldout(s->cct, 20)
-      << "subdomain=" << subdomain 
-      << " domain=" << domain 
-      << " in_hosted_domain=" << in_hosted_domain 
-      << " in_hosted_domain_s3website=" << in_hosted_domain_s3website 
+      << "subdomain=" << subdomain
+      << " domain=" << domain
+      << " in_hosted_domain=" << in_hosted_domain
+      << " in_hosted_domain_s3website=" << in_hosted_domain_s3website
       << dendl;
 
     if (g_conf->rgw_resolve_cname
@@ -2131,10 +2138,10 @@ int RGWREST::preprocess(struct req_state *s, rgw::io::BasicClient* cio)
         }
 
         ldout(s->cct, 20)
-          << "subdomain=" << subdomain 
-          << " domain=" << domain 
-          << " in_hosted_domain=" << in_hosted_domain 
-          << " in_hosted_domain_s3website=" << in_hosted_domain_s3website 
+          << "subdomain=" << subdomain
+          << " domain=" << domain
+          << " in_hosted_domain=" << in_hosted_domain
+          << " in_hosted_domain_s3website=" << in_hosted_domain_s3website
           << dendl;
       }
     }
@@ -2303,6 +2310,8 @@ RGWHandler_REST* RGWREST::get_handler(
   if (*init_error < 0) {
     return nullptr;
   }
+
+  dout(10) << "===get_handler" << dendl;
 
   RGWRESTMgr *m = mgr.get_manager(s, frontend_prefix, s->decoded_uri,
                                   &s->relative_uri);

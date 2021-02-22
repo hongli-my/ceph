@@ -289,7 +289,7 @@ static int modify_obj_attr(RGWRados *store, struct req_state *s, rgw_obj& obj, c
   RGWRados::Object::Read read_op(&op_target);
 
   read_op.params.attrs = &attrs;
-  
+
   int r = read_op.prepare();
   if (r < 0) {
     return r;
@@ -583,7 +583,7 @@ int rgw_build_object_policies(RGWRados *store, struct req_state *s,
     s->object_acl = ceph::make_unique<RGWAccessControlPolicy>(s->cct);
 
     rgw_obj obj(s->bucket, s->object);
-      
+
     store->set_atomic(s->obj_ctx, obj);
     if (prefetch_data) {
       store->set_prefetch_data(s->obj_ctx, obj);
@@ -1570,7 +1570,7 @@ int RGWGetObj::handle_slo_manifest(bufferlist& bl)
   total_len = end - ofs + 1;
 
   r = iterate_slo_parts(s->cct, store, ofs, end, slo_parts,
-        get_obj_user_manifest_iterate_cb, (void *)this);
+        get_obj_user_manifest_iterate_cb, (void *)this);     // 每个slo分片的读取逻辑
   if (r < 0) {
     return r;
   }
@@ -1661,9 +1661,9 @@ void RGWGetObj::execute()
   perfcounter->inc(l_rgw_get);
 
   RGWRados::Object op_target(store, s->bucket_info, *static_cast<RGWObjectCtx *>(s->obj_ctx), obj);
-  RGWRados::Object::Read read_op(&op_target);
+  RGWRados::Object::Read read_op(&op_target);  // 从rados层读取omap, xattrs等元数据信息
 
-  op_ret = get_params();
+  op_ret = get_params(); // 从http reuqest 读数据
   if (op_ret < 0)
     goto done_err;
 
@@ -1713,7 +1713,7 @@ void RGWGetObj::execute()
     op_ret = send_response_data(bl, 0, total_len);
     if (op_ret < 0)
     {
-      ldout(s->cct, 0) << "ERROR: failed to send_response_data ret= " << op_ret 
+      ldout(s->cct, 0) << "ERROR: failed to send_response_data ret= " << op_ret
                        << dendl;
       goto done_err;
     }
@@ -1871,6 +1871,8 @@ void RGWListBuckets::execute()
   bool started = false;
   uint64_t total_count = 0;
 
+  dout(5) << "RGWListBuckets:: execute" << dendl;
+
   const uint64_t max_buckets = s->cct->_conf->rgw_list_buckets_max_chunk;
 
   op_ret = get_params();
@@ -1963,7 +1965,7 @@ void RGWGetUsage::execute()
   op_ret = get_params();
   if (op_ret < 0)
     return;
-    
+
   if (!start_date.empty()) {
     op_ret = utime_t::parse_date(start_date, &start_epoch, NULL);
     if (op_ret < 0) {
@@ -1971,7 +1973,7 @@ void RGWGetUsage::execute()
       return;
     }
   }
-    
+
   if (!end_date.empty()) {
     op_ret = utime_t::parse_date(end_date, &end_epoch, NULL);
     if (op_ret < 0) {
@@ -1979,13 +1981,13 @@ void RGWGetUsage::execute()
       return;
     }
   }
-     
+
   uint32_t max_entries = 1000;
 
   bool is_truncated = true;
 
   RGWUsageIter usage_iter;
-  
+
   while (is_truncated) {
     op_ret = store->read_usage(s->user->user_id, start_epoch, end_epoch, max_entries,
                                 &is_truncated, usage_iter, usage);
@@ -1997,7 +1999,7 @@ void RGWGetUsage::execute()
 
     if (op_ret < 0) {
       return;
-    }    
+    }
   }
 
   op_ret = rgw_user_sync_all_stats(store, s->user->user_id);
@@ -2018,7 +2020,7 @@ void RGWGetUsage::execute()
     ldout(store->ctx(), 0) << "ERROR: can't read user header: "  << dendl;
     return;
   }
-  
+
   return;
 }
 
@@ -2301,6 +2303,8 @@ void RGWListBucket::pre_exec()
 
 void RGWListBucket::execute()
 {
+  // list bucket 的文件,
+  dout(5) << "==RGWListBucket:: execute" << dendl;
   if (!s->bucket_exists) {
     op_ret = -ERR_NO_SUCH_BUCKET;
     return;
@@ -2594,6 +2598,8 @@ static void filter_out_website(std::map<std::string, ceph::bufferlist>& add_attr
 
 void RGWCreateBucket::execute()
 {
+
+  dout(5) << "===RGWCreateBucket:: execute" << dendl;
   RGWAccessControlPolicy old_policy(s->cct);
   buffer::list aclbl;
   buffer::list corsbl;
@@ -2905,7 +2911,7 @@ void RGWDeleteBucket::execute()
   if ( op_ret < 0) {
      ldout(s->cct, 1) << "WARNING: failed to sync user stats before bucket delete: op_ret= " << op_ret << dendl;
   }
-  
+
   op_ret = store->check_bucket_empty(s->bucket_info);
   if (op_ret < 0) {
     return;
@@ -3000,7 +3006,7 @@ int RGWPutObj::verify_permission()
 			      rgw::IAM::s3GetObjectVersion,
 			      rgw::IAM::ARN(obj));
 	if (e == Effect::Deny) {
-	  return -EACCES; 
+	  return -EACCES;
 	} else if (e == Effect::Pass &&
 		   !cs_acl.verify_permission(*s->auth.identity, s->perm_mask,
 						RGW_PERM_READ)) {
@@ -3328,7 +3334,7 @@ void RGWPutObj::execute()
   int len;
   map<string, string>::iterator iter;
   bool multipart;
-  
+
   off_t fst;
   off_t lst;
   const auto& compression_type = store->get_zone_params().get_compression_type(
@@ -3664,7 +3670,7 @@ void RGWPutObj::execute()
                                (user_data.empty() ? nullptr : &user_data));
 
   // only atomic upload will upate version_id here
-  if (!multipart) 
+  if (!multipart)
     version_id = (static_cast<RGWPutObjProcessor_Atomic *>(processor))->get_version_id();
 
   /* produce torrent */
@@ -4457,7 +4463,7 @@ int RGWCopyObj::verify_permission()
 	  return -EACCES;
 	} else if (e == Effect::Pass &&
 		   !src_acl.verify_permission(*s->auth.identity, s->perm_mask,
-					      RGW_PERM_READ)) { 
+					      RGW_PERM_READ)) {
 	  return -EACCES;
 	}
       } else if (!src_acl.verify_permission(*s->auth.identity,
@@ -4878,7 +4884,7 @@ static void get_lc_oid(struct req_state *s, string& oid)
 void RGWPutLC::execute()
 {
   bufferlist bl;
-  
+
   RGWLifecycleConfiguration_S3 *config = NULL;
   RGWLCXMLParser_S3 parser(s->cct);
   RGWLifecycleConfiguration_S3 new_config(s->cct);
@@ -4953,7 +4959,7 @@ void RGWPutLC::execute()
     new_config.to_xml(*_dout);
     *_dout << dendl;
   }
-  
+
   new_config.encode(bl);
   map<string, bufferlist> attrs;
   attrs = s->bucket_attrs;
@@ -4961,12 +4967,12 @@ void RGWPutLC::execute()
   op_ret = rgw_bucket_set_attrs(store, s->bucket_info, attrs, &s->bucket_info.objv_tracker);
   if (op_ret < 0)
     return;
-  string shard_id = s->bucket.tenant + ':' + s->bucket.name + ':' + s->bucket.marker;  
-  string oid; 
+  string shard_id = s->bucket.tenant + ':' + s->bucket.name + ':' + s->bucket.marker;
+  string oid;
   get_lc_oid(s, oid);
   pair<string, int> entry(shard_id, lc_uninitial);
   int max_lock_secs = s->cct->_conf->rgw_lc_lock_max_time;
-  rados::cls::lock::Lock l(lc_index_lock_name); 
+  rados::cls::lock::Lock l(lc_index_lock_name);
   utime_t time(max_lock_secs, 0);
   l.set_duration(time);
   l.set_cookie(cookie);
@@ -4984,7 +4990,7 @@ void RGWPutLC::execute()
     }
     op_ret = cls_rgw_lc_set_entry(*ctx, oid, entry);
     if (op_ret < 0) {
-      dout(0) << "RGWLC::RGWPutLC() failed to set entry " << oid << op_ret << dendl;     
+      dout(0) << "RGWLC::RGWPutLC() failed to set entry " << oid << op_ret << dendl;
     }
     break;
   }while(1);
@@ -5003,7 +5009,7 @@ void RGWDeleteLC::execute()
   op_ret = get_system_obj_attrs(store, s, obj, orig_attrs, NULL, &s->bucket_info.objv_tracker);
   if (op_ret < 0)
     return;
-    
+
   for (iter = orig_attrs.begin(); iter != orig_attrs.end(); ++iter) {
       const string& name = iter->first;
       dout(10) << "DeleteLC : attr: " << name << dendl;
@@ -5016,7 +5022,7 @@ void RGWDeleteLC::execute()
   op_ret = rgw_bucket_set_attrs(store, s->bucket_info, attrs, &s->bucket_info.objv_tracker);
   string shard_id = s->bucket.tenant + ':' + s->bucket.name + ':' + s->bucket.bucket_id;
   pair<string, int> entry(shard_id, lc_uninitial);
-  string oid; 
+  string oid;
   get_lc_oid(s, oid);
   int max_lock_secs = s->cct->_conf->rgw_lc_lock_max_time;
   librados::IoCtx *ctx = store->get_lc_pool_ctx();
@@ -5567,7 +5573,7 @@ void RGWCompleteMultipart::execute()
           cb.len = block.len;
           cs_info.blocks.push_back(cb);
           new_ofs = cb.new_ofs + cb.len;
-        } 
+        }
         if (!compressed)
           cs_info.compression_type = obj_part.cs_info.compression_type;
         cs_info.orig_size += obj_part.cs_info.orig_size;
@@ -6407,7 +6413,7 @@ bool RGWBulkUploadOp::handle_file_verify_permission(RGWBucketInfo& binfo,
       return false;
     }
   }
-    
+
   return verify_bucket_permission_no_policy(s, s->user_acl.get(),
 					    &bacl, RGW_PERM_WRITE);
 }
@@ -6596,7 +6602,7 @@ void RGWBulkUploadOp::execute()
     return;
   }
 
-  /* Handling the $UPLOAD_PATH accordingly to the Swift's Bulk middleware. See: 
+  /* Handling the $UPLOAD_PATH accordingly to the Swift's Bulk middleware. See:
    * https://github.com/openstack/swift/blob/2.13.0/swift/common/middleware/bulk.py#L31-L41 */
   std::string bucket_path, file_prefix;
   std::tie(bucket_path, file_prefix) = handle_upload_path(s);
@@ -6984,7 +6990,7 @@ void RGWGetBucketPolicy::execute()
   auto attrs = s->bucket_attrs;
   map<string, bufferlist>::iterator aiter = attrs.find(RGW_ATTR_IAM_POLICY);
   if (aiter == attrs.end()) {
-    ldout(s->cct, 0) << __func__ << " can't find bucket IAM POLICY attr" 
+    ldout(s->cct, 0) << __func__ << " can't find bucket IAM POLICY attr"
                      << " bucket_name = " << s->bucket_name << dendl;
     op_ret = -ERR_NO_SUCH_BUCKET_POLICY;
     s->err.message = "The bucket policy does not exist";
@@ -6998,7 +7004,7 @@ void RGWGetBucketPolicy::execute()
       s->err.message = "The bucket policy does not exist";
       return;
     }
-  } 
+  }
 }
 
 void RGWDeleteBucketPolicy::send_response()

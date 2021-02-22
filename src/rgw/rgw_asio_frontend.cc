@@ -130,8 +130,12 @@ void handle_connection(RGWProcessEnv& env, Stream& stream,
 
   auto cct = env.store->ctx();
 
+  derr << "===handle_connection "  << dendl;
+
   // read messages from the stream until eof
   for (;;) {
+
+    derr << "=== ----handle_connection "  << dendl;
     // configure the parser
     rgw::asio::parser_type parser;
     parser.header_limit(header_limit);
@@ -365,7 +369,7 @@ int AsioFrontend::init()
       l.use_nodelay = (nodelay->second == "1");
     }
   }
-  
+
   // start listeners
   for (auto& l : listeners) {
     l.acceptor.open(l.endpoint.protocol(), ec);
