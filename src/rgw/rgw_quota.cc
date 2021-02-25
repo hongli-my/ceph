@@ -978,12 +978,16 @@ public:
       return ret;
     }
 
+    // 检查 是否reshard
+    dout(5) << "===check_bucket_shards: "
+             << " bucket_stats.num_objects=" << bucket_stats.num_objects << " num_objs " << num_objs << " num_shards=" 
+             << num_shards << " max_objs_per_shard " << max_objs_per_shard << dendl;
     if (bucket_stats.num_objects  + num_objs > num_shards * max_objs_per_shard) {
       ldout(store->ctx(), 0) << __func__ << ": resharding needed: stats.num_objects=" << bucket_stats.num_objects
              << " shard max_objects=" <<  max_objs_per_shard * num_shards << dendl;
       need_resharding = true;
       if (suggested_num_shards) {
-        *suggested_num_shards = (bucket_stats.num_objects  + num_objs) * 2 / max_objs_per_shard;
+        *suggested_num_shards = (bucket_stats.num_objects  + num_objs) * 2 / max_objs_per_shard;  // 计算 当前桶  对象数需要的 分片数
       }
     } else {
       need_resharding = false;

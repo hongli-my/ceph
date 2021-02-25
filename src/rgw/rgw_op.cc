@@ -2329,10 +2329,15 @@ void RGWListBucket::execute()
 
   RGWRados::Bucket target(store, s->bucket_info);
   if (shard_id >= 0) {
+    dout(5) << "==RGWListBucket:: shard_id: " << shard_id << dendl;
     target.set_shard_id(shard_id);
   }
   RGWRados::Bucket::List list_op(&target);
 
+  dout(5) << "==RGWListBucket:: prefix: " << prefix << dendl;
+  dout(5) << "==RGWListBucket:: delimiter: " << delimiter << dendl;
+  dout(5) << "==RGWListBucket:: marker: " << marker << dendl;
+  dout(5) << "==RGWListBucket:: list_versions: " << list_versions << dendl;
   list_op.params.prefix = prefix;
   list_op.params.delim = delimiter;
   list_op.params.marker = marker;

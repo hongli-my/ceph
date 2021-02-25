@@ -4669,7 +4669,7 @@ int RGWRados::init_complete()
 
   reshard_wait = std::make_shared<RGWReshardWait>(this);
 
-  reshard = new RGWReshard(this);
+  reshard = new RGWReshard(this); // 初始化reshard 线程
 
   /* only the master zone in the zonegroup reshards buckets */
   run_reshard_thread = run_reshard_thread && (get_zonegroup().master_zone == zone_public_config.id);
@@ -5643,6 +5643,8 @@ int RGWRados::Bucket::List::list_objects_ordered(int64_t max_p,
   RGWRados *store = target->get_store();
   CephContext *cct = store->ctx();
   int shard_id = target->get_shard_id();
+
+  dout(5) << "==list_objects_ordered:: shard_id: " << shard_id << dendl;
 
   int count = 0;
   bool truncated = true;
@@ -14055,7 +14057,7 @@ int RGWRados::cls_user_remove_bucket(rgw_raw_obj& obj, const cls_user_bucket& bu
 int RGWRados::check_bucket_shards(const RGWBucketInfo& bucket_info, const rgw_bucket& bucket,
 				  RGWQuotaInfo& bucket_quota)
 {
-  if (!cct->_conf->rgw_dynamic_resharding) {
+  if (!cct->_conf->rgw_dynamic_resharding) {  //  是否开启自动分片
       return 0;
   }
 
@@ -14071,7 +14073,7 @@ int RGWRados::check_bucket_shards(const RGWBucketInfo& bucket_info, const rgw_bu
   }
 
   if (need_resharding) {
-    ldout(cct, 20) << __func__ << " bucket " << bucket.name << " need resharding " <<
+    ldout(cct, 0) << __func__ << " bucket " << bucket.name << " need resharding " <<
       " old num shards " << bucket_info.num_shards << " new num shards " << suggested_num_shards <<
       dendl;
     return add_bucket_to_reshard(bucket_info, suggested_num_shards);
@@ -14086,9 +14088,9 @@ int RGWRados::add_bucket_to_reshard(const RGWBucketInfo& bucket_info, uint32_t n
 
   uint32_t num_source_shards = (bucket_info.num_shards > 0 ? bucket_info.num_shards : 1);
 
-  new_num_shards = min(new_num_shards, get_max_bucket_shards());
+  new_num_shards = min(new_num_shards, get_max_bucket_shards());  // min(, 65521)
   if (new_num_shards <= num_source_shards) {
-    ldout(cct, 20) << "not resharding bucket name=" << bucket_info.bucket.name << ", orig_num=" << num_source_shards << ", new_num_shards=" << new_num_shards << dendl;
+    ldout(cct, 0) << "not resharding bucket name=" << bucket_info.bucket.name << ", orig_num=" << num_source_shards << ", new_num_shards=" << new_num_shards << dendl;
     return 0;
   }
 
@@ -14100,7 +14102,7 @@ int RGWRados::add_bucket_to_reshard(const RGWBucketInfo& bucket_info, uint32_t n
   entry.old_num_shards = num_source_shards;
   entry.new_num_shards = new_num_shards;
 
-  return reshard.add(entry);
+  return reshard.add(entry); // 把bucket的分片任务加入shard log中等待处理
 }
 
 int RGWRados::check_quota(const rgw_user& bucket_owner, rgw_bucket& bucket,
@@ -14120,6 +14122,8 @@ void RGWRados::get_bucket_index_objects(const string& bucket_oid_base,
     if (shard_id < 0) {
       for (uint32_t i = 0; i < num_shards; ++i) {
         snprintf(buf, sizeof(buf), "%s.%d", bucket_oid_base.c_str(), i);
+        dout(5) << " shard id" << bucket_oid_base.c_str() << "." << i
+        << dendl;   // list bucket 获取 桶的 分片
         bucket_objects[i] = buf;
       }
     } else {
@@ -14191,6 +14195,7 @@ void RGWRados::get_bucket_index_object(const string& bucket_oid_base, uint32_t n
   }
 }
 
+//  put obj 时调用,  将信息写入到对应的分片中
 int RGWRados::get_bucket_index_object(const string& bucket_oid_base, const string& obj_key,
     uint32_t num_shards, RGWBucketInfo::BIShardsHashType hash_type, string *bucket_obj, int *shard_id)
 {
@@ -14204,7 +14209,7 @@ int RGWRados::get_bucket_index_object(const string& bucket_oid_base, const strin
           *shard_id = -1;
         }
       } else {
-        uint32_t sid = rgw_bucket_shard_index(obj_key, num_shards);
+        uint32_t sid = rgw_bucket_shard_index(obj_key, num_shards);  // 根据对象名 计算对应的 shard id,  hash 并对num_shards 取余
         char buf[bucket_oid_base.size() + 32];
         snprintf(buf, sizeof(buf), "%s.%d", bucket_oid_base.c_str(), sid);
         (*bucket_obj) = buf;
@@ -14216,6 +14221,13 @@ int RGWRados::get_bucket_index_object(const string& bucket_oid_base, const strin
     default:
       r = -ENOTSUP;
   }
+
+  dout(0)
+  << __func__
+  << " caculate obj_key's shard: " << obj_key
+  << " shard: " << shard_id
+  << " num_shards: " << num_shards
+  << dendl;
   return r;
 }
 
