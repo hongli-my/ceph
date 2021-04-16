@@ -546,7 +546,7 @@ void OSDService::agent_entry()
 
   while (!agent_stop_flag) {
     if (agent_queue.empty()) {
-      dout(20) << __func__ << " empty queue" << dendl;
+      dout(20) << __func__ << " empty queue" << dendl;  // 进去驱逐/flush 逻辑 
       agent_cond.Wait(agent_lock);
       continue;
     }
@@ -3292,7 +3292,7 @@ int OSD::init()
   client_messenger->add_dispatcher_tail(this);
   cluster_messenger->add_dispatcher_head(this);
 
-  hb_front_client_messenger->add_dispatcher_head(&heartbeat_dispatcher);
+  hb_front_client_messenger->add_dispatcher_head(&heartbeat_dispatcher);  // 心跳注册
   hb_back_client_messenger->add_dispatcher_head(&heartbeat_dispatcher);
   hb_front_server_messenger->add_dispatcher_head(&heartbeat_dispatcher);
   hb_back_server_messenger->add_dispatcher_head(&heartbeat_dispatcher);
@@ -3341,7 +3341,7 @@ int OSD::init()
   command_tp.start();
 
   // start the heartbeat
-  heartbeat_thread.create("osd_srv_heartbt");
+  heartbeat_thread.create("osd_srv_heartbt");   // 心跳启动
 
   // tick
   tick_timer.add_event_after(get_tick_interval(),
@@ -5050,7 +5050,7 @@ void OSD::need_heartbeat_peer_update()
   heartbeat_set_peers_need_update();
 }
 
-void OSD::maybe_update_heartbeat_peers()
+void OSD::maybe_update_heartbeat_peers()    //  更新需要 心跳的osd 信息， 规则: osd 直接有相同的pg
 {
   ceph_assert(osd_lock.is_locked());
 
@@ -5182,7 +5182,7 @@ void OSD::reset_heartbeat_peers(bool all)
 
 void OSD::handle_osd_ping(MOSDPing *m)
 {
-  if (superblock.cluster_fsid != m->fsid) {
+  if (superblock.cluster_fsid != m->fsid) {   // 不是一个集群的
     dout(20) << "handle_osd_ping from " << m->get_source_inst()
 	     << " bad fsid " << m->fsid << " != " << superblock.cluster_fsid << dendl;
     m->put();
@@ -5207,7 +5207,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
 
   switch (m->op) {
 
-  case MOSDPing::PING:
+  case MOSDPing::PING:  // 处理心跳消息
     {
       if (cct->_conf->osd_debug_drop_ping_probability > 0) {
 	auto heartbeat_drop = debug_heartbeat_drops_remaining.find(from);
@@ -5233,7 +5233,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
 	}
       }
 
-      if (!cct->get_heartbeat_map()->is_healthy()) {
+      if (!cct->get_heartbeat_map()->is_healthy()) {   // 内部状态不对
 	dout(10) << "internal heartbeat not healthy, dropping ping request" << dendl;
 	break;
       }
@@ -5242,7 +5242,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
 				curmap->get_epoch(),
 				MOSDPing::PING_REPLY, m->stamp,
 				cct->_conf->osd_heartbeat_min_size);
-      m->get_connection()->send_message(r);
+      m->get_connection()->send_message(r);  // 发送回包
 
       if (curmap->is_up(from)) {
 	service.note_peer_epoch(from, m->map_epoch);
@@ -5253,7 +5253,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
 	  }
 	}
       } else if (!curmap->exists(from) ||
-		 curmap->get_down_at(from) > m->map_epoch) {
+		 curmap->get_down_at(from) > m->map_epoch) {   // 虽然收到 ping 返回的包，但是已经认为这个osd 死了
 	// tell them they have died
 	Message *r = new MOSDPing(monc->get_fsid(),
 				  curmap->get_epoch(),
@@ -5265,7 +5265,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
     }
     break;
 
-  case MOSDPing::PING_REPLY:
+  case MOSDPing::PING_REPLY:   // 处理心跳回包
     {
       map<int,HeartbeatInfo>::iterator i = heartbeat_peers.find(from);
       if (i != heartbeat_peers.end()) {
@@ -5435,7 +5435,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
             i->second.ping_history.erase(i->second.ping_history.begin(), ++acked);
           }
 
-          if (i->second.is_healthy(now)) {
+          if (i->second.is_healthy(now)) {   // 如果是正常的， 取消之前失败的记录
             // Cancel false reports
             auto failure_queue_entry = failure_queue.find(from);
             if (failure_queue_entry != failure_queue.end()) {
@@ -5450,7 +5450,7 @@ void OSD::handle_osd_ping(MOSDPing *m)
                        << "failure report for osd." << from << dendl;
               send_still_alive(curmap->get_epoch(),
                                from,
-                               failure_pending_entry->second.second);
+                               failure_pending_entry->second.second);   // 发送还活的消息给mon
               failure_pending.erase(failure_pending_entry);
             }
           }
@@ -5496,7 +5496,7 @@ void OSD::heartbeat_entry()
     heartbeat();
 
     double wait;
-    if (cct->_conf.get_val<bool>("debug_disable_randomized_ping")) {
+    if (cct->_conf.get_val<bool>("debug_disable_randomized_ping")) {    // 随机一个时间 sleep后 走心跳流程
       wait = (float)cct->_conf->osd_heartbeat_interval;
     } else {
       wait = .5 + ((float)(rand() % 10)/10.0) * (float)cct->_conf->osd_heartbeat_interval;
@@ -5511,7 +5511,7 @@ void OSD::heartbeat_entry()
   }
 }
 
-void OSD::heartbeat_check()
+void OSD::heartbeat_check()    // 检查心跳是否超时
 {
   ceph_assert(heartbeat_lock.is_locked());
   utime_t now = ceph_clock_now();
@@ -5533,7 +5533,7 @@ void OSD::heartbeat_check()
 	     << " last_rx_back " << p->second.last_rx_back
 	     << " last_rx_front " << p->second.last_rx_front
 	     << dendl;
-    if (p->second.is_unhealthy(now)) {
+    if (p->second.is_unhealthy(now)) {   // 判断大于daedline
       utime_t oldest_deadline = p->second.ping_history.begin()->second.first;
       if (p->second.last_rx_back == utime_t() ||
 	  p->second.last_rx_front == utime_t()) {
@@ -5567,7 +5567,7 @@ void OSD::heartbeat()
 
   // get CPU load avg
   double loadavgs[1];
-  int hb_interval = cct->_conf->osd_heartbeat_interval;
+  int hb_interval = cct->_conf->osd_heartbeat_interval;  // osd 心跳间隔时间
   int n_samples = 86400;
   if (hb_interval > 1) {
     n_samples /= hb_interval;
@@ -5588,7 +5588,7 @@ void OSD::heartbeat()
   for (map<int,HeartbeatInfo>::iterator p = heartbeat_peers.begin();
        p != heartbeat_peers.end();
        ++p)
-    hb_peers.push_back(p->first);
+    hb_peers.push_back(p->first);  // 更新osd peer,  含相同pg 的osd
 
   auto new_stat = service.set_osd_stat(hb_peers, get_num_pgs());
   dout(5) << __func__ << " " << new_stat << dendl;
@@ -5601,7 +5601,7 @@ void OSD::heartbeat()
 
   utime_t now = ceph_clock_now();
   utime_t deadline = now;
-  deadline += cct->_conf->osd_heartbeat_grace;
+  deadline += cct->_conf->osd_heartbeat_grace;  // 心跳容忍时间 , 20s
 
   // send heartbeats
   for (map<int,HeartbeatInfo>::iterator i = heartbeat_peers.begin();
@@ -5616,7 +5616,7 @@ void OSD::heartbeat()
     if (i->second.hb_interval_start == utime_t())
       i->second.hb_interval_start = now;
     dout(30) << "heartbeat sending ping to osd." << peer << dendl;
-    i->second.con_back->send_message(new MOSDPing(monc->get_fsid(),
+    i->second.con_back->send_message(new MOSDPing(monc->get_fsid(),     // 分管理网络 ， 数据网络 ？ 
 					  service.get_osdmap_epoch(),
 					  MOSDPing::PING, now,
 					  cct->_conf->osd_heartbeat_min_size));
@@ -5749,7 +5749,7 @@ void OSD::tick_without_osd_lock()
     // mon report?
     utime_t now = ceph_clock_now();
     if (service.need_fullness_update() ||
-	now - last_mon_report > cct->_conf->osd_mon_report_interval) {
+	now - last_mon_report > cct->_conf->osd_mon_report_interval) {   // 5s 上报一次
       last_mon_report = now;
       send_full_update();
       send_failures();
@@ -6579,7 +6579,7 @@ void OSD::requeue_failures()
 	   << failure_queue.size() << dendl;
 }
 
-void OSD::send_failures()
+void OSD::send_failures()   // 失败的osd 心跳发送给mon
 {
   ceph_assert(map_lock.is_locked());
   ceph_assert(mon_report_lock.is_locked());
@@ -7397,7 +7397,7 @@ bool OSD::heartbeat_dispatch(Message *m)
     break;
 
   case MSG_OSD_PING:
-    handle_osd_ping(static_cast<MOSDPing*>(m));
+    handle_osd_ping(static_cast<MOSDPing*>(m));  // 收到心跳包
     break;
 
   default:

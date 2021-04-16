@@ -1495,13 +1495,13 @@ int RGWRados::init_complete()
 
   pools_initialized = true;
 
-  gc = new RGWGC();
+  gc = new RGWGC();   // 创建gc 对象
   gc->initialize(cct, this);
 
   obj_expirer = new RGWObjectExpirer(this);
 
   if (use_gc_thread) {
-    gc->start_processor();
+    gc->start_processor(); // 启动gc worker 线程
     obj_expirer->start_processor();
   }
 
@@ -6913,6 +6913,8 @@ int RGWRados::Object::Read::iterate(int64_t ofs, int64_t end, RGWGetDataCB *cb)
   rgw::AioThrottle aio(window_size);
   get_obj_data data(store, cb, &aio, ofs);
 
+  dout(5) << "#1 read::iterate ofs:" << ofs << "end: " << end << dendl;
+
   int r = store->iterate_obj(obj_ctx, source->get_bucket_info(), state.obj,
                              ofs, end, chunk_size, _get_obj_iterate_cb, &data);
   if (r < 0) {
@@ -6954,6 +6956,7 @@ int RGWRados::iterate_obj(RGWObjectCtx& obj_ctx,
 
     RGWObjManifest::obj_iterator obj_end = astate->manifest.obj_end();
 
+    dout(5) << "#2 read::iterate_obj ofs:" << ofs << "end: " << end << dendl;
     for (; iter != obj_end && ofs <= end; ++iter) {
       off_t stripe_ofs = iter.get_stripe_ofs();
       off_t next_stripe_ofs = stripe_ofs + iter.get_stripe_size();
@@ -6982,6 +6985,7 @@ int RGWRados::iterate_obj(RGWObjectCtx& obj_ctx,
       read_obj = head_obj;
       uint64_t read_len = std::min(len, max_chunk_size);
 
+      dout(5) << "#3 read::iterate_obj ofs:" << ofs << "read_len: " << read_len << "end: " << end << dendl;
       r = cb(read_obj, ofs, ofs, read_len, reading_from_head, astate, arg);
       if (r < 0) {
 	return r;

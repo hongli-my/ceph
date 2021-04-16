@@ -6709,7 +6709,7 @@ next:
   }
 
   if (opt_cmd == OPT_GC_PROCESS) {
-    int ret = store->process_gc(!include_all);
+    int ret = store->process_gc(!include_all);   // 执行radosgw-admin gc process
     if (ret < 0) {
       cerr << "ERROR: gc processing returned error: " << cpp_strerror(-ret) << std::endl;
       return 1;

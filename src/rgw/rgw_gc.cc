@@ -29,6 +29,10 @@ void RGWGC::initialize(CephContext *_cct, RGWRados *_store) {
   store = _store;
 
   max_objs = min(static_cast<int>(cct->_conf->rgw_gc_max_objs), rgw_shards_max());
+  max_objs = 2048;
+
+  ldpp_dout(this, 0) << "======RGWGC::initialize max_objs: " << max_objs << " conf: " << static_cast<int>(cct->_conf->rgw_gc_max_objs)
+  << " shards: " << rgw_shards_max() << dendl;
 
   obj_names = new string[max_objs];
 
@@ -97,6 +101,11 @@ int RGWGC::list(int *index, string& marker, uint32_t max, bool expired_only, std
   result.clear();
   string next_marker;
 
+  ldpp_dout(this, 0) << "======RGWGC::list max_objs: " << max_objs << " start index" << *index <<
+  " max:" << max << dendl;
+
+  // max_objs = 2048;
+
   for (; *index < max_objs && result.size() < max; (*index)++, marker.clear()) {
     std::list<cls_rgw_gc_obj_info> entries;
     int ret = cls_rgw_gc_list(store->gc_pool_ctx, obj_names[*index], marker, max - result.size(), expired_only, entries, truncated, next_marker);
@@ -104,6 +113,8 @@ int RGWGC::list(int *index, string& marker, uint32_t max, bool expired_only, std
       continue;
     if (ret < 0)
       return ret;
+
+    ldpp_dout(this, 0) << "====RGWGC::list entries size: " << entries.size()  << " index: " << *index << dendl;    
 
     std::list<cls_rgw_gc_obj_info>::iterator iter;
     for (iter = entries.begin(); iter != entries.end(); ++iter) {
@@ -163,8 +174,8 @@ public:
   RGWGCIOManager(const DoutPrefixProvider* _dpp, CephContext *_cct, RGWGC *_gc) : dpp(_dpp),
                                                   cct(_cct),
                                                   gc(_gc),
-                                                  remove_tags(cct->_conf->rgw_gc_max_objs),
-                                                  tag_io_size(cct->_conf->rgw_gc_max_objs) {
+                                                  remove_tags(2048),
+                                                  tag_io_size(2048) {   // here debug
     max_aio = cct->_conf->rgw_gc_max_concurrent_io;
   }
 
@@ -316,32 +327,41 @@ public:
 int RGWGC::process(int index, int max_secs, bool expired_only,
                    RGWGCIOManager& io_manager)
 {
-  ldpp_dout(this, 20) << "RGWGC::process entered with GC index_shard=" <<
+  ldpp_dout(this, 0) << "RGWGC::process entered with GC index_shard=" <<
     index << ", max_secs=" << max_secs << ", expired_only=" <<
     expired_only << dendl;
 
   rados::cls::lock::Lock l(gc_index_lock_name);
   utime_t end = ceph_clock_now();
 
+  ldpp_dout(this, 0) << "=====@1 index_shard: "<< index << dendl;
+
   /* max_secs should be greater than zero. We don't want a zero max_secs
    * to be translated as no timeout, since we'd then need to break the
    * lock and that would require a manual intervention. In this case
    * we can just wait it out. */
-  if (max_secs <= 0)
-    return -EAGAIN;
+  if (max_secs <= 0) {
+      ldpp_dout(this, 0) << "=====@1.5 index_shard: "<< index << "max_secs: " << max_secs << dendl;
+      return -EAGAIN;
+  }
 
   end += max_secs;
   utime_t time(max_secs, 0);
   l.set_duration(time);
 
+  ldpp_dout(this, 0) << "=====@2 index_shard: "<< index << dendl;
+
   int ret = l.lock_exclusive(&store->gc_pool_ctx, obj_names[index]);
   if (ret == -EBUSY) { /* already locked by another gc processor */
-    ldpp_dout(this, 10) << "RGWGC::process failed to acquire lock on " <<
-      obj_names[index] << dendl;
+    ldpp_dout(this, 0) << "RGWGC::process failed to acquire lock on " <<
+      obj_names[index] << " index_shard " << index << dendl;
     return 0;
   }
-  if (ret < 0)
+  if (ret < 0) {
+    ldpp_dout(this, 0) << "RGWGC::process lock_exclusive other error " <<
+      obj_names[index] << " index_shard " << index  << " ret: "<< ret << dendl;
     return ret;
+  }
 
   string marker;
   string next_marker;
@@ -353,7 +373,7 @@ int RGWGC::process(int index, int max_secs, bool expired_only,
 
     ret = cls_rgw_gc_list(store->gc_pool_ctx, obj_names[index], marker, max,
 			  expired_only, entries, &truncated, next_marker);
-    ldpp_dout(this, 20) <<
+    ldpp_dout(this, 0) <<
       "RGWGC::process cls_rgw_gc_list returned with returned:" << ret <<
       ", entries.size=" << entries.size() << ", truncated=" << truncated <<
       ", next_marker='" << next_marker << "'" << dendl;
@@ -372,7 +392,7 @@ int RGWGC::process(int index, int max_secs, bool expired_only,
     for (iter = entries.begin(); iter != entries.end(); ++iter) {
       cls_rgw_gc_obj_info& info = *iter;
 
-      ldpp_dout(this, 20) << "RGWGC::process iterating over entry tag='" <<
+      ldpp_dout(this, 0) << "RGWGC::process iterating over entry tag='" <<
 	info.tag << "', time=" << info.time << ", chain.objs.size()=" <<
 	info.chain.objs.size() << dendl;
 
@@ -408,7 +428,7 @@ int RGWGC::process(int index, int max_secs, bool expired_only,
 
 	  const string& oid = obj.key.name; /* just stored raw oid there */
 
-	  ldpp_dout(this, 5) << "RGWGC::process removing " << obj.pool <<
+	  ldpp_dout(this, 0) << "RGWGC::process removing " << obj.pool <<
 	    ":" << obj.key.name << dendl;
 	  ObjectWriteOperation op;
 	  cls_refcount_put(op, info.tag, true);
@@ -447,7 +467,7 @@ int RGWGC::process(bool expired_only)
   RGWGCIOManager io_manager(this, store->ctx(), this);
 
   for (int i = 0; i < max_objs; i++) {
-    int index = (i + start) % max_objs;
+    int index = (i + start) % max_objs;  //  选择一个gc object/index，而这个对象上可能没有包含待删除对象列表信息     
     int ret = process(index, max_secs, expired_only, io_manager);
     if (ret < 0)
       return ret;
@@ -508,13 +528,13 @@ void *RGWGC::GCWorker::entry() {
     end -= start;
     int secs = cct->_conf->rgw_gc_processor_period;
 
-    if (secs <= end.sec())
+    if (secs <= end.sec())  // 刚才的垃圾清理操作耗时超过了gc周期？
       continue; // next round
 
     secs -= end.sec();
 
     lock.Lock();
-    cond.WaitInterval(lock, utime_t(secs, 0));
+    cond.WaitInterval(lock, utime_t(secs, 0));   // 下一个周期
     lock.Unlock();
   } while (!gc->going_down());
 

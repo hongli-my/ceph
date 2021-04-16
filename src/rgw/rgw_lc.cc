@@ -1221,17 +1221,20 @@ int RGWLC::process(int index, int max_lock_secs)
       return 0;
 
     cls_rgw_lc_obj_head head;
-    ret = cls_rgw_lc_get_head(store->lc_pool_ctx, obj_names[index], head);
+    ret = cls_rgw_lc_get_head(store->lc_pool_ctx, obj_names[index], head);  // lc.xx header, 获取start_date ?
     if (ret < 0) {
       ldpp_dout(this, 0) << "RGWLC::process() failed to get obj head "
           << obj_names[index] << ", ret=" << ret << dendl;
       goto exit;
     }
 
-    if(!if_already_run_today(head.start_date)) {
-      head.start_date = now;
+     ldpp_dout(this, 0) << "=======lc @1" << dendl;
+
+    if(!if_already_run_today(head.start_date)) {   // 判断今天是否运行过, 是否一天只运行一次? 
+      head.start_date = now;    // 假设没有运行过， 更新当前时间
       head.marker.clear();
       ret = bucket_lc_prepare(index);
+       ldpp_dout(this, 0) << "=======lc @2" << dendl;
       if (ret < 0) {
       ldpp_dout(this, 0) << "RGWLC::process() failed to update lc object "
           << obj_names[index] << ", ret=" << ret << dendl;
@@ -1239,7 +1242,9 @@ int RGWLC::process(int index, int max_lock_secs)
       }
     }
 
-    ret = cls_rgw_lc_get_next_entry(store->lc_pool_ctx, obj_names[index], head.marker, entry);
+     ldpp_dout(this, 0) << "=======lc @3" << dendl;
+
+    ret = cls_rgw_lc_get_next_entry(store->lc_pool_ctx, obj_names[index], head.marker, entry); // 从lc.xx对象的header中获取下一个要遍历的omap entry
     if (ret < 0) {
       ldpp_dout(this, 0) << "RGWLC::process() failed to get obj entry "
           << obj_names[index] << dendl;
@@ -1250,7 +1255,7 @@ int RGWLC::process(int index, int max_lock_secs)
       goto exit;
 
     entry.second = lc_processing;
-    ret = cls_rgw_lc_set_entry(store->lc_pool_ctx, obj_names[index],  entry);
+    ret = cls_rgw_lc_set_entry(store->lc_pool_ctx, obj_names[index],  entry);   // 设置entry 状态是 processing
     if (ret < 0) {
       ldpp_dout(this, 0) << "RGWLC::process() failed to set obj entry " << obj_names[index]
           << " (" << entry.first << "," << entry.second << ")" << dendl;
@@ -1258,13 +1263,13 @@ int RGWLC::process(int index, int max_lock_secs)
     }
 
     head.marker = entry.first;
-    ret = cls_rgw_lc_put_head(store->lc_pool_ctx, obj_names[index],  head);
+    ret = cls_rgw_lc_put_head(store->lc_pool_ctx, obj_names[index],  head);  // 保存head, 和上面cls_rgw_lc_ge_head 相对应
     if (ret < 0) {
       ldpp_dout(this, 0) << "RGWLC::process() failed to put head " << obj_names[index] << dendl;
       goto exit;
     }
     l.unlock(&store->lc_pool_ctx, obj_names[index]);
-    ret = bucket_lc_process(entry.first);
+    ret = bucket_lc_process(entry.first);       // 开始处理删除
     bucket_lc_post(index, max_lock_secs, entry, ret);
   }while(1);
 
