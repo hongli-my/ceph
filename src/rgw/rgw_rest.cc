@@ -1644,6 +1644,7 @@ RGWOp* RGWHandler_REST::get_op(RGWRados* store)
   RGWOp *op;
   switch (s->op) {
    case OP_GET:
+      ldout(s->cct, 0) << "===debug RGWHandler_REST::get_op op_get" << dendl;
      op = op_get();
      break;
    case OP_PUT:
@@ -1653,6 +1654,7 @@ RGWOp* RGWHandler_REST::get_op(RGWRados* store)
      op = op_delete();
      break;
    case OP_HEAD:
+    ldout(s->cct, 0) << "===debug RGWHandler_REST::get_op op_head" << dendl;
      op = op_head();
      break;
    case OP_POST:

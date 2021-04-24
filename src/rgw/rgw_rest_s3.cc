@@ -3501,6 +3501,7 @@ RGWOp *RGWHandler_REST_Service_S3::op_get()
   if (is_usage_op()) {
     return new RGWGetUsage_ObjStore_S3;
   } else {
+    dout(0) << "===debug RGWListBuckets_ObjStore_S3::op_get" << dendl;
     return new RGWListBuckets_ObjStore_S3;
   }
 }
@@ -3571,6 +3572,7 @@ RGWOp *RGWHandler_REST_Bucket_S3::get_obj_op(bool get_data)
 
 RGWOp *RGWHandler_REST_Bucket_S3::op_get()
 {
+  dout(0) << "===debug RGWHandler_REST_Bucket_S3::op_get" << dendl;
   if (s->info.args.sub_resource_exists("logging"))
     return new RGWGetBucketLogging_ObjStore_S3;
 

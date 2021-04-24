@@ -5781,7 +5781,7 @@ void OSD::tick_without_osd_lock()
       std::lock_guard l{min_last_epoch_clean_lock};
       const auto elapsed = now - last_sent_beacon;
       if (chrono::duration_cast<chrono::seconds>(elapsed).count() >
-        cct->_conf->osd_beacon_report_interval) {
+        cct->_conf->osd_beacon_report_interval) {    // osd 自身的心跳, 300s 向 mon 发送一次
         need_send_beacon = true;
       }
     }

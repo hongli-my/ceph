@@ -250,7 +250,7 @@ int AtomicObjectProcessor::prepare()
   r = manifest_gen.create_begin(store->ctx(), &manifest,
                                 bucket_info.placement_rule,
                                 &tail_placement_rule,
-                                head_obj.bucket, head_obj);
+                                head_obj.bucket, head_obj);  // 初始化manifest
   if (r < 0) {
     return r;
   }

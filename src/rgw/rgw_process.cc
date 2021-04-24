@@ -158,7 +158,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   op->pre_exec();
 
   ldpp_dout(op, 2) << "executing" << dendl;
-  op->execute();
+  op->execute();    // 执行请求
 
   ldpp_dout(op, 2) << "completing" << dendl;
   op->complete();
@@ -216,7 +216,7 @@ int process_request(RGWRados* const store,
   RGWHandler_REST *handler = rest->get_handler(store, s,
                                                auth_registry,
                                                frontend_prefix,
-                                               client_io, &mgr, &init_error);
+                                               client_io, &mgr, &init_error);   // 获取handler
   rgw::dmclock::SchedulerCompleter c;
   if (init_error != 0) {
     abort_early(s, nullptr, init_error, nullptr);
@@ -227,7 +227,7 @@ int process_request(RGWRados* const store,
   should_log = mgr->get_logging();
 
   ldpp_dout(s, 2) << "getting op " << s->op << dendl;
-  op = handler->get_op(store);
+  op = handler->get_op(store);   //  这里根据request_method获取到最终处理request请求的handler类型
   if (!op) {
     abort_early(s, NULL, -ERR_METHOD_NOT_ALLOWED, handler);
     goto done;

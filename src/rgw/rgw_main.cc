@@ -347,7 +347,7 @@ int main(int argc, const char **argv)
 
   list<string> apis;
 
-  get_str_list(g_conf()->rgw_enable_apis, apis);
+  get_str_list(g_conf()->rgw_enable_apis, apis);   // 开启不同的 api 接口, 比如s3, admin ...
 
   map<string, bool> apis_map;
   for (list<string>::iterator li = apis.begin(); li != apis.end(); ++li) {
@@ -368,7 +368,7 @@ int main(int argc, const char **argv)
   // Swift API entrypoint could placed in the root instead of S3
   const bool swift_at_root = g_conf()->rgw_swift_url_prefix == "/";
   if (apis_map.count("s3") > 0 || s3website_enabled) {
-    if (! swift_at_root) {
+    if (! swift_at_root) {              // 开启s3 api
       rest.register_default_mgr(set_logging(rest_filter(store, RGW_REST_S3,
                                                         new RGWRESTMgr_S3(s3website_enabled, sts_enabled, iam_enabled, pubsub_enabled))));
     } else {

@@ -1398,7 +1398,7 @@ int RGWGetObj::read_user_manifest_part(rgw_bucket& bucket,
                                        const off_t end_ofs,
                                        bool swift_slo)
 {
-  ldpp_dout(this, 20) << "user manifest obj=" << ent.key.name
+  ldpp_dout(this, 0) << "user manifest obj=" << ent.key.name
       << "[" << ent.key.instance << "]" << dendl;
   RGWGetObj_CB cb(this);
   RGWGetObj_Filter* filter = &cb;
@@ -1695,7 +1695,7 @@ static int get_obj_user_manifest_iterate_cb(rgw_bucket& bucket,
 int RGWGetObj::handle_user_manifest(const char *prefix)
 {
   const boost::string_view prefix_view(prefix);
-  ldpp_dout(this, 2) << "RGWGetObj::handle_user_manifest() prefix="
+  ldpp_dout(this, 0) << "RGWGetObj::handle_user_manifest() prefix="
                    << prefix_view << dendl;
 
   const size_t pos = prefix_view.find('/');
@@ -2233,6 +2233,8 @@ void RGWListBuckets::execute()
   bool started = false;
   uint64_t total_count = 0;
 
+  ldpp_dout(this, 0) << "===debug RGWListBuckets::execute" << dendl;
+
   const uint64_t max_buckets = s->cct->_conf->rgw_list_buckets_max_chunk;
 
   op_ret = get_params();
@@ -2280,6 +2282,8 @@ void RGWListBuckets::execute()
     std::map<std::string, RGWBucketEnt>& m = buckets.get_buckets();
     for (const auto& kv : m) {
       const auto& bucket = kv.second;
+
+      ldpp_dout(this, 0) << "===debug(s3cmd ls) " << bucket.bucket.name << " " << bucket.count << dendl;
 
       global_stats.bytes_used += bucket.size;
       global_stats.bytes_used_rounded += bucket.size_rounded;
@@ -3710,18 +3714,21 @@ void RGWPutObj::execute()
   if (!chunked_upload) { /* with chunked upload we don't know how big is the upload.
                             we also check sizes at the end anyway */
     op_ret = store->check_quota(s->bucket_owner.get_id(), s->bucket,
-				user_quota, bucket_quota, s->content_length);
+				user_quota, bucket_quota, s->content_length);   // 判断是否满足user和bucket的quota约束
     if (op_ret < 0) {
       ldpp_dout(this, 20) << "check_quota() returned ret=" << op_ret << dendl;
       return;
     }
-    op_ret = store->check_bucket_shards(s->bucket_info, s->bucket, bucket_quota);
+    op_ret = store->check_bucket_shards(s->bucket_info, s->bucket, bucket_quota);  // 判断是否满足bucket index的shard的约束 http://docs.ceph.com/docs/master/radosgw/dynamicresharding/
     if (op_ret < 0) {
       ldpp_dout(this, 20) << "check_bucket_shards() returned ret=" << op_ret << dendl;
       return;
     }
   }
 
+  // 当启用Multipart上传时，用户每次上传新part需要带上之前上传response中返回的etag
+  // 判断用户是否提供了etag
+  // 关于etag介绍：https://baike.baidu.com/item/ETag/4419019?fr=aladdin
   if (supplied_etag) {
     strncpy(supplied_md5, supplied_etag, sizeof(supplied_md5) - 1);
     supplied_md5[sizeof(supplied_md5) - 1] = '\0';
@@ -3780,7 +3787,7 @@ void RGWPutObj::execute()
     processor.emplace<AppendObjectProcessor>(
             &aio, store, s->bucket_info, pdest_placement, s->bucket_owner.get_id(),obj_ctx, obj,
             s->req_id, position, &cur_accounted_size);
-  } else {
+  } else {   // 整体上传
     if (s->bucket_info.versioning_enabled()) {
       if (!version_id.empty()) {
         obj.key.set_instance(version_id);
@@ -3795,6 +3802,9 @@ void RGWPutObj::execute()
         s->bucket_owner.get_id(), obj_ctx, obj, olh_epoch, s->req_id);
   }
 
+  // 写入前的准备工作：生成对象名称前缀、设置placement rules
+  // 在内存中创建对应的对象、设置切分head和tail对象的尺寸等等工作
+  // 分片上传多几个步骤:  比起Atomic，多了处理uploadId和partNumber的过程
   op_ret = processor->prepare();
   if (op_ret < 0) {
     ldpp_dout(this, 20) << "processor->prepare() returned ret=" << op_ret
@@ -3822,7 +3832,7 @@ void RGWPutObj::execute()
     lst = copy_source_range_lst;
   }
 
-  fst = copy_source_range_fst;
+  fst = copy_source_range_fst;  // 如果是copy source range操作，获得source对象的起止偏移
 
   // no filters by default
   DataProcessor *filter = processor.get();
@@ -3882,6 +3892,18 @@ void RGWPutObj::execute()
     /* update torrrent */
     torrent.update(data);
 
+    // 先将调用RGWPutObj_Compress::handle_data数据进行压缩 
+    // (或加密 或者 什么都不做)
+   // 然后调用RGWPutObjProcessor_Atomic::handle_data 将处理后的数据切分成一个head和多个tail对象
+   // handle_data最终调用`store->aio_put_obj_data`函数，将对象写入rados
+   // 在使用librados异步写时，需要先调用aio_create_completion函数，该
+   // 函数会返回一个rados_completion_t类型的对象，来表示异步写的状态
+   // rados_completion_t: Represents the state of an asynchronous operation
+   //  - it contains the return value once the operation completes, 
+    // and can be used to block until the operation is complete or safe.
+   // put_data_and_throttle调用throttle_data时会传入这个对象的指针(handle) 
+  // 这里，如果是上传Multipart类型对象的第一块数据，need_to_wait为true
+   // need_to_wait为true表示函数会等到该块数据写入rados才返回（变为同步写）
     op_ret = filter->process(std::move(data), ofs);
     if (op_ret < 0) {
       ldpp_dout(this, 20) << "processor->process() returned ret="
@@ -3953,7 +3975,7 @@ void RGWPutObj::execute()
   policy.encode(aclbl);
   emplace_attr(RGW_ATTR_ACL, std::move(aclbl));
 
-  if (dlo_manifest) {
+  if (dlo_manifest) {   // put 完之后的操作？ 
     op_ret = encode_dlo_manifest_attr(dlo_manifest, attrs);
     if (op_ret < 0) {
       ldpp_dout(this, 0) << "bad user manifest: " << dlo_manifest << dendl;
